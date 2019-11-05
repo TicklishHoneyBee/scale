@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Scale Drawing Reader</title>
+	<script type="text/javascript">
+var util = {
+	imp2metre:function(feet,inches) {
+		var Inches = (inches*1)+(feet*12);
+		return (Inches*25.4)/1000;
+	},
+	metre2imp:function(metres) {
+		var Inches = (metres*1000)/25.4;
+		var feet = Math.floor(Inches/12);
+		var inches = Inches-(feet*12);
+		return {feet:feet,inches:inches};
+	},
+	px2real:function(px) {
+		var sm = px/imageState.model.ppsm.x;
+		var metric = sm*1000;
+		var imperial = metric/25.4;
+		return {m:metric,i:imperial};
+	},
+	real2scale:function(real) {
+		var metric = real.m/output.scale;
+		var imperial = real.i/output.scale;
+		return {m:metric,i:imperial};
+	},
+	display:function(val) {
+		var str = val.m.toFixed(2)+'mm (';
+		if (val.i > 18) {
+			var f = Math.floor(val.i/12);
+			var i = val.i-(f*12);
+			str += f+'\''+i.toFixed(3)+'")';
+		}else{
+			str += val.i.toFixed(3)+'")';
+		}
+		return str;
+	}
+};
+var scaling = {
+	step1:function() {
+		output.info('Select 2 points on the drawing a known distance apart, such as a marked length or height.');
+	},
+	step2:function() {
+		output.info('Enter the known distance.');
+		document.getElementById('scaling').style.display = 'block';
+		document.getElementById('scaling-entered').onclick = scaling.step3;
+	},
+	step3:function() {
+		//output.info('');
+		imageState.model.calculate();
+		document.getElementById('scaling').style.display = 'none';
+		output.info('Select a scale to convert measurements to.');
+		clickState.pick = 1;
+	},
+	calculate:function() {
+		var metres = document.getElementById('cmetres').value;
+		if (metres == 0) {
+			var feet = document.getElementById('cfeet').value;
+			var inches = document.getElementById('cinches').value;
+			metres = util.imp2metre(feet,inches);
+		}
+		metres *= 1000.0;
+		var scale = util.real2scale({m:metres,i:metres/25.4});
+		document.getElementById('canswer').innerText = util.display(scale);
+	}
+};
+var output = {
+	scale:1,
+	setscale:function() {
+		output.info('Click on any two points to get the distance between them.');
+		output.scale = this.value;
+	},
+	info:function(text) {
+		document.getElementById('info').innerText = text;
+	},
+	extra:function(text) {
+		document.getElementById('info').innerText += "\n" + text;
+	},
+	calculate:function() {
+		var px = clickState.get();
+		var real = {x:util.px2real(px.x),y:util.px2real(px.y),d:util.px2real(px.d)};
+		if (output.scale == 1) {
+			output.info('Horizontal: ');
+			output.extra(util.display(real.x));
+			output.extra('Vertical: ');
+			output.extra(util.display(real.y));
+			output.extra('Diagonal: ');
+			output.extra(util.display(real.d));
+			return;
+		}
+		var scale = {x:util.real2scale(real.x),y:util.real2scale(real.y),d:util.real2scale(real.d)};
+		output.info('Horizontal: ');
+		output.extra(util.display(real.x));
+		output.extra(util.display(scale.x));
+		output.extra('Vertical: ');
+		output.extra(util.display(real.y));
+		output.extra(util.display(scale.y));
+		output.extra('Diagonal: ');
+		output.extra(util.display(real.d));
+		output.extra(util.display(scale.d));
+	}
+};
+var clickState = {
+	pick:0, // 0 setting scale, 1 picking sizes, 2 passthrough to imageState.drag
+	state:0, // 0 nothing, 1 first mousedown, 2 first set, 3 second mousedown, 4 second set
+	first:{x:0,y:0},
+	second:{x:0,y:0},
+	reset:function() {
+		clickState.pick = 0;
+		clickState.state = 0;
+		var img = document.getElementById('img');
+		img.onmousedown = clickState.mousedown;
+		img.onmousemove = clickState.mousemove;
+		img.onmouseup = clickState.mouseup;
+	},
+	set:function() {
+		//output.extra('set():'+clickState.pick+':'+clickState.state+':('+clickState.first.x+','+clickState.first.y+'):('+clickState.second.x+','+clickState.second.y+')');
+	},
+	get:function() {
+		var X = clickState.first.x-clickState.second.x;
+		var Y = clickState.first.y-clickState.second.y;
+		if (X<0)
+			X *= -1.0;
+		if (Y<0)
+			Y *= -1.0;
+
+		var D = Math.sqrt((X*X)+(Y*Y));
+
+		return {x:X,y:Y,d:D};
+	},
+	mousedown:function(e) {
+		if (e.button == 1 && pick == 1 && !clickState.state)
+			return imageState.drag.start(e);
+		if (e.button != 0)
+			return;
+		clickState.state++;
+		var rect = document.getElementById('img').getBoundingClientRect();
+		if (clickState.state == 1) {
+			clickState.first.x = e.clientX-rect.left;
+			clickState.first.y = e.clientY-rect.top;
+		}else if (clickState.state == 3) {
+			clickState.second.x = e.clientX-rect.left;
+			clickState.second.y = e.clientY-rect.top;
+			if (clickState.pick == 1)
+				output.calculate();
+		}
+	},
+	mouseup:function(e) {
+		if (e.button == 1 && pick == 2)
+			return imageState.drag.end(e);
+		if (e.button != 0)
+			return;
+		var rect = document.getElementById('img').getBoundingClientRect();
+		if (clickState.state == 1) {
+			clickState.first.x = e.clientX-rect.left;
+			clickState.first.y = e.clientY-rect.top;
+			clickState.state = 2;
+			clickState.set();
+		}else if (clickState.state == 3) {
+			clickState.second.x = e.clientX-rect.left;
+			clickState.second.y = e.clientY-rect.top;
+			clickState.state = 4;
+			clickState.set();
+			if (clickState.pick == 0) {
+				scaling.step2();
+			}else if (clickState.pick == 1) {
+				output.calculate();
+			}
+			clickState.reset();
+			clickState.pick = 1;
+		}
+	},
+	mousemove:function(e) {
+		e.stopPropagation();
+		e.preventDefault();
+		if (clickState.pick == 2)
+			return imageState.drag.move(e);
+		if (clickState.state == 0 || clickState.state == 2)
+			return;
+		var rect = document.getElementById('img').getBoundingClientRect();
+		if (clickState.state == 1) {
+			clickState.first.x = e.clientX-rect.left;
+			clickState.first.y = e.clientY-rect.top;
+		}else if (clickState.state == 3) {
+			clickState.second.x = e.clientX-rect.left;
+			clickState.second.y = e.clientY-rect.top;
+			if (clickState.pick == 1)
+				output.calculate();
+		}
+		return false;
+	}
+};
+var imageState = {
+	size:{width:0,height:0},
+	scaling:{
+		value:1,
+		size:{width:0,height:0}
+	},
+	model:{
+		ppsm:{x:0,y:0},
+		calculate:function() {
+			var px = clickState.get();
+			var metres = document.getElementById('metres').value;
+			if (metres == 0) {
+				var feet = document.getElementById('feet').value;
+				var inches = document.getElementById('inches').value;
+				metres = util.imp2metre(feet,inches);
+			}
+			if (document.getElementById('dirh').checked) {
+				imageState.model.ppsm.x = px.x/metres;
+				imageState.model.ppsm.y = imageState.model.ppsm.x;
+			}else{
+				imageState.model.ppsm.x = px.y/metres;
+				imageState.model.ppsm.y = imageState.model.ppsm.x;
+			}
+			document.getElementById('ppsm').innerText = 'ppsm: ('+imageState.model.ppsm.x.toFixed(3)+','+imageState.model.ppsm.y.toFixed(3)+')';
+		}
+	},
+	update:function(scale) {
+		imageState.scaling.value = scale;
+		imageState.scaling.size.width = imageState.size.width*scale;
+		imageState.scaling.size.height = imageState.size.height*scale;
+
+		var img = document.getElementById('img');
+		img.style.width = imageState.scaling.size.width+'px';
+		img.style.height = imageState.scaling.size.height+'px';
+		img.style.left = ((img.parentElement.offsetWidth/2)-(imageState.scaling.size.width/2))+'px';
+		img.style.top = ((img.parentElement.offsetHeight/2)-(imageState.scaling.size.height/2))+'px';
+	},
+	set:function() {
+		var img = document.getElementById('img');
+		imageState.size.width = img.naturalWidth;
+		imageState.size.height = img.naturalHeight;
+		imageState.update(1);
+	},
+	drag:{
+		start:function(e) {
+			clickState.pick = 2;
+		},
+		move:function(e) {
+		},
+		end:function(e) {
+			clickState.pick = 1;
+		}
+	}
+};
+window.loadHandler = {
+	click:function(e) {
+		try{
+			document.getElementById("file").click();
+		}catch(err) {}
+	},
+	enter:function(e) {
+		e.stopPropagation();
+		e.preventDefault();
+	},
+	over:function(e) {
+		e.stopPropagation();
+		e.preventDefault();
+	},
+	drop:function(e) {
+		e.stopPropagation();
+		e.preventDefault();
+		loadImage(e.dataTransfer.files);
+	},
+	load:function(files) {
+		if (files.length < 1)
+			return false;
+		if (!files[0].type.startsWith('image/'))
+			return false;
+		document.getElementById("loader").style.display = 'none';
+
+		var img = document.getElementById('img');
+		if (!img) {
+			img = document.createElement("img");
+			img.id = 'img';
+			document.getElementById("image").appendChild(img);
+		}
+
+		img.file = files[0];
+
+		const reader = new FileReader();
+		reader.onload = window.loadHandler.complete;
+		reader.readAsDataURL(files[0]);
+	},
+	complete:function(e) {
+		document.getElementById('img').onload = window.loadHandler.finalise;
+		document.getElementById('img').src = e.target.result;
+	},
+	finalise:function(e) {
+		imageState.set();
+		clickState.reset();
+		scaling.step1();
+	}
+};
+function openLoader() {
+	document.getElementById("loader").style.display = 'block';
+	ddfile = document.getElementById("ddfile");
+	ddfile.addEventListener("click", window.loadHandler.click, false);
+	ddfile.addEventListener("dragenter", window.loadHandler.enter, false);
+	ddfile.addEventListener("dragover", window.loadHandler.over, false);
+	ddfile.addEventListener("drop", window.loadHandler.drop, false);
+}
+
+function onLoad() {
+	openLoader();
+	document.getElementById('scale').value = 1;
+	document.getElementById('scale').onchange = output.setscale;
+	document.getElementById('docalc').onclick = scaling.calculate;
+}
+	</script>
+	<style type="text/css">
+html,body {margin:0; padding:0; overflow:auto; width:100%; height:100%; background-color:grey;}
+
+div#details {position:absolute; margin:0; padding:0; width:200px; left:0px; top:0px; border:none; border-right:1px solid black; min-height:100%; background-color:lightgrey; z-index:1;}
+div#details div {margin:5px; padding:2px; width:184px; border:1px solid black; background-color:white; color:black; font-size:14px; line-height:20px; min-height:20px;}
+div#details select {margin:5px; padding:3px; width:184px; border:1px solid black; background-color:white; color:black; font-size:14px; line-height:20px; min-height:20px;}
+div#details div#info {white-space:pre-wrap; overflow:auto; overflow-wrap:break-word; height:auto; min-height:150px;}
+div#details div#calc {}
+div#details div#calc p {font:15px bold; text-align:center; margin:0; padding:0; line-height:20px;}
+div#details div#calc div {border:none; border-top:1px solid black; margin:0; margin-top:5px; padding:0;}
+div#details div#calc div {font:15px bold; text-align:center; padding:0; line-height:20px; heigh:auto; min-height:20px;}
+
+div#image {position:absolute; margin:0; padding:0; left:201px; right:0px; top:0px; border:none; min-height:100%; z-index:1; background-color:grey; overflow:auto;}
+div#image img {margin:0; padding:0; border:none; position:absolute; left:0px; top:0px; cursor:crosshair;}
+
+div#scaling {display:none; position:relative; margin:200px auto; width:400px; border:1px solid black; padding:5px; z-index:10; min-height:100px; background-color:lightgrey;}
+div#scaling div {display:block; margin:2px 0px;}
+div#scaling label {display:inline-block; width:100px; text-align:right;}
+div#scaling input {display:block; margin:5px auto; padding:3px; width:180px; border:1px solid black; background-color:white; color:black; font-size:14px; line-height:20px; min-height:20px;}
+div#scaling input[type=radio] {display:inline-block; width:20px;}
+div#scaling input#metres {display:inline-block; margin:0px; width:100px;}
+div#scaling input#feet {display:inline-block; margin:0px; width:100px;}
+div#scaling input#inches {display:inline-block; width:100px;}
+
+div#loader {display:none; position:relative; margin:200px auto; width:400px; border:1px solid black; padding:5px; z-index:10; min-height:100px; background-color:lightgrey;}
+div#loader input {display:none;}
+div#loader div#ddfile {margin:10px; padding:0; background-color:slategrey; color:white; width:380px; height:100px; line-height:100px; text-align:center; cursor:pointer;}
+	</style>
+</head>
+<body>
+
+<div id="details">
+	<div id="ppsm" title="Pixels Per Scale Metre (X,Y)"></div>
+	<select id="scale">
+		<option value="1">Full Size (No Scaling)</option>
+		<option value="160">1/160 N</option>
+		<option value="152.4">1/152 (2mm/ft)</option>
+		<option value="120">1/120 TT</option>
+		<option value="101.6">1/101.6 (3mm/ft)</option>
+		<option value="87">1/87 H0 (3.5mm/ft)</option>
+		<option value="76.2">1/76 00/EM/P4 (4mm/ft)</option>
+		<option value="64">1/64 S (3/16"/ft)</option>
+		<option value="48">1/48 0 (&frac14;"/ft)</option>
+		<option value="43.54">1/43.5 0 (7mm/ft)</option>
+		<option value="32">1/32 G1</option>
+		<option value="30.48">1/30.5 G1 UK (10mm/ft)</option>
+		<option value="35">1/35</option>
+		<option value="20.32">1/20.3 F (15mm/ft)</option>
+		<option value="19.05">1/19 SM (16mm/ft)</option>
+	</select>
+	<div id="info"></div>
+	<div id="calc">
+		<p>Scale Calculator</p>
+		<div>
+			<input type="number" name="cmetres" id="cmetres" value="0" title="Metres" />
+		</div>
+		<div>
+			<input type="number" name="cfeet" id="cfeet" value="0" title="Feet" />
+			<input type="number" name="cinches" id="cinches" value="0" title="Inches" />
+		</div>
+		<div id="canswer"></div>
+		<div>
+			<input type="button" id="docalc" value="Scale" />
+		</div>
+	</div>
+</div>
+<div id="image"></div>
+<div id="loader">
+	<input type="file" id="file" multiple accept="image/*" style="display:none" onchange="loadHandler.load(this.files)" />
+	<div id="ddfile">Click to select an image.</div>
+</div>
+<div id="scaling">
+	<div>
+		<label for="dirh">Horizontal:</label> <input type="radio" name="direction" id="dirh" value="dirh" checked="checked" title="Direction is Horizontal" />
+		<label for="dirv">Vertical:</label> <input type="radio" name="direction" id="dirv" value="dirv" checked="checked" title="Direction is Vertical" />
+		</span>
+	</div>
+	<div>
+		<label for="metres">Metres:</label> <input type="number" name="metres" id="metres" value="0" title="Metres" />
+	</div>
+	<div>Or</div>
+	<div>
+		<label for="feet">Feet:</label> <input type="number" name="feet" id="feet" value="0" title="Feet" />
+	</div>
+	<div>
+		<label for="inches">Inches:</label> <input type="number" name="inches" id="inches" value="0" title="Inches" />
+	</div>
+	<div>
+		<input type="button" id="scaling-entered" value="Done" />
+	</div>
+</div>
+<script type="text/javascript">onLoad();</script>
+</body>
+</html>
