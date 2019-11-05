@@ -6,6 +6,8 @@ not require a http server for use.
 
 USAGE:
 Open scale.html in a web browser.
+	A publicly available, and usable page is available via github:
+		https://ticklishhoneybee.github.io/scale/scale.html
 Load in a scale drawing image.
 Set the scale of the image by:
 	selecting 2 points of a known dimension (such as edge end of a side
