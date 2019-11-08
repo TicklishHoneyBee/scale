@@ -225,8 +225,14 @@ var imageState = {
 		var img = document.getElementById('img');
 		img.style.width = imageState.scaling.size.width+'px';
 		img.style.height = imageState.scaling.size.height+'px';
-		img.style.left = ((img.parentElement.offsetWidth/2)-(imageState.scaling.size.width/2))+'px';
-		img.style.top = ((img.parentElement.offsetHeight/2)-(imageState.scaling.size.height/2))+'px';
+		var p = ((img.parentElement.offsetWidth/2)-(imageState.scaling.size.width/2));
+		if (p < 0)
+			p = 0;
+		img.style.left = p+'px';
+		p = ((img.parentElement.offsetHeight/2)-(imageState.scaling.size.height/2));
+		if (p < 0)
+			p = 0;
+		img.style.top = p+'px';
 	},
 	set:function() {
 		var img = document.getElementById('img');
@@ -379,7 +385,7 @@ div#loader div#ddfile {margin:10px; padding:0; background-color:slategrey; color
 <div id="image"></div>
 <div id="loader">
 	<input type="file" id="file" multiple accept="image/*" style="display:none" onchange="loadHandler.load(this.files)" />
-	<div id="ddfile">Click to select an image.</div>
+	<div id="ddfile">Drag image here, or click to select an image.</div>
 </div>
 <div id="scaling">
 	<div>
