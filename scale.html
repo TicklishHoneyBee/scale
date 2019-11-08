@@ -262,7 +262,7 @@ window.loadHandler = {
 	drop:function(e) {
 		e.stopPropagation();
 		e.preventDefault();
-		loadImage(e.dataTransfer.files);
+		loadHandler.load(e.dataTransfer.files);
 	},
 	load:function(files) {
 		if (files.length < 1)
